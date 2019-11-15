@@ -326,26 +326,56 @@ func (p *RedisBroker) Publish(queueName string, taskPrefix string,
 
 	_, err := p.Client.Pipelined(func(pipe redis.Pipeliner) error {
 		pipe.HMSet(prefixedTaskKey, data)
-
-		if eta.IsZero() {
-			pipe.RPush(p.prefixed(queueName), taskID)
-		} else {
-			// if eta is before now, then we should push this
-			// taskID in priority
-			if eta.Before(time.Now().UTC()) {
-				pipe.LPush(p.prefixed(queueName), taskID)
-			} else {
-				pipe.ZAdd(p.prefixed(queueName), redis.Z{
-					Score:  float64(eta.UTC().Unix()),
-					Member: taskID,
-				})
-			}
-		}
-
-		return nil
+		return p.publish(pipe, queueName, taskPrefix, taskID, data, eta)
 	})
 	if err != nil {
 		return errors.Wrapf(err, "unable to HMSET %s", prefixedTaskKey)
+	}
+
+	return nil
+}
+
+// Publish publishes raw data.
+// it uses a hash to store the task itself
+// pushes the task id to the list or a zset if the task is delayed.
+func (p *RedisBroker) PublishMulti(queueNames []string, taskPrefixes []string,
+	taskIDs []string, data []map[string]interface{}, ETAs []time.Time) error {
+	_, err := p.Client.Pipelined(func(pipe redis.Pipeliner) error {
+		i := 0
+		for _, queue := range queueNames {
+			prefixedTaskKey := p.prefixed(taskPrefixes[i], taskIDs[i])
+
+			pipe.HMSet(prefixedTaskKey, data[i])
+			err := p.publish(pipe, queue, taskPrefixes[i], taskIDs[i], data[i], ETAs[i])
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Wrapf(err, "unable to HMSET %v", taskPrefixes)
+	}
+
+	return nil
+}
+
+func (p *RedisBroker) publish(pipe redis.Pipeliner, queueName string, taskPrefix string,
+	taskID string, data map[string]interface{}, eta time.Time) error {
+
+	if eta.IsZero() {
+		pipe.RPush(p.prefixed(queueName), taskID)
+	} else {
+		// if eta is before now, then we should push this
+		// taskID in priority
+		if eta.Before(time.Now().UTC()) {
+			pipe.LPush(p.prefixed(queueName), taskID)
+		} else {
+			pipe.ZAdd(p.prefixed(queueName), redis.Z{
+				Score:  float64(eta.UTC().Unix()),
+				Member: taskID,
+			})
+		}
 	}
 
 	return nil

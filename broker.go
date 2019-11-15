@@ -33,6 +33,9 @@ type Broker interface {
 	// Publish publishes raw data.
 	Publish(string, string, string, map[string]interface{}, time.Time) error
 
+	// Publish publishes raw data.
+	PublishMulti([]string, []string, []string, []map[string]interface{}, []time.Time) error
+
 	// Consume returns an array of raw data.
 	Consume(string, string, time.Time) ([]map[string]interface{}, error)
 }

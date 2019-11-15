@@ -231,6 +231,11 @@ func (q Queue) TaskKey(taskID string) string {
 	return fmt.Sprintf("%s:%s", q.name, taskID)
 }
 
+// TaskKey returns the task key prefixed by the queue name.
+func (q Queue) GetName() string {
+	return q.name
+}
+
 // Cancel cancels a task using its ID.
 func (q *Queue) Cancel(ctx context.Context, taskID string) (*Task, error) {
 	task, err := q.Get(ctx, taskID)

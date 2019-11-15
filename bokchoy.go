@@ -139,6 +139,19 @@ func (b *Bokchoy) Queue(name string) *Queue {
 	return queue
 }
 
+// Queues gets or creates a new queue.
+func (b *Bokchoy) Queues(names []string) *Queues {
+	queues := make([]*Queue, 0, len(names))
+	for _, name := range names {
+		queues = append(queues, b.Queue(name))
+	}
+
+	return &Queues{
+		broker: b.broker,
+		queues: queues,
+	}
+}
+
 // Stop stops all queues and consumers.
 func (b *Bokchoy) Stop(ctx context.Context) {
 	fields := []logging.Field{
